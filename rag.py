@@ -3,8 +3,15 @@ import requests
 from anthropic import Anthropic
 import time
 import json
+import os
 from typing import List, Dict, Optional, Generator, Any
 from urllib.parse import urlparse
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # ==============================================================================
 # RAG Pipeline Service
@@ -200,12 +207,20 @@ def initialize_session_state():
         "messages": [],
         "documents_cache": None,
         "last_refresh_time": 0,
-        "ragie_key": "",
-        "anthropic_key": ""
+        "ragie_key": os.getenv("RAGIE_API_KEY", "") or (st.secrets.get("RAGIE_API_KEY", "") if hasattr(st, "secrets") else ""),
+        "anthropic_key": os.getenv("ANTHROPIC_API_KEY", "") or (st.secrets.get("ANTHROPIC_API_KEY", "") if hasattr(st, "secrets") else "")
     }
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
+
+    # Auto-initialize pipeline if keys are detected in environment/secrets
+    if not st.session_state.pipeline and st.session_state.ragie_key and st.session_state.anthropic_key:
+        try:
+            st.session_state.pipeline = RAGPipeline(st.session_state.ragie_key, st.session_state.anthropic_key)
+            st.session_state.api_keys_submitted = True
+        except Exception:
+            pass
 
 def refresh_documents(pipeline: RAGPipeline):
     """Fetch current documents from Ragie."""
